@@ -71,3 +71,40 @@ def create_ddpmtrainer(
     )
 
     return trainer
+
+def create_trainer(name='model_1', save_dir='logs/', checkpoint_dir='checkpoints/', precision='32',
+                   max_epoch=1000, strategy='auto', is_earlystopping=False, monitor='val_loss',
+                   check_val_every_n_epoch=50, patience=10, gradient_clip_val=None):
+    print(f"name: {name}, checkpoint_dir: {checkpoint_dir}, is_earlystopping: {is_earlystopping}, monitor: {monitor}")
+    # 创建 TensorBoardLogger 日志记录器
+    logger = TensorBoardLogger(save_dir=save_dir, name=name)
+    # 创建 ModelCheckpoint 回调
+    checkpoint_callback = ModelCheckpoint(
+        dirpath=checkpoint_dir,  # 保存模型的路径
+        save_last=True,  # 是否保存最后一个模型
+        save_top_k=15,  # 保存最好的几个模型
+        monitor=monitor,  # 监控的指标
+        filename=f'{name}-epoch={{epoch}}-{{{monitor}:.4f}}',  # 添加监控指标到文件名
+        mode='min',  # 保存模型的模式
+        every_n_train_steps=500,  # 每多少训练步保存一次模型
+        save_on_train_epoch_end=True,
+    )
+    # 进度条
+    progress_bar = TQDMProgressBar(refresh_rate=1)
+    callbacks = [checkpoint_callback, progress_bar]
+    # 早停
+    if is_earlystopping:
+        # 创建 EarlyStopping 回调
+        earlystopping = EarlyStopping(monitor, patience=patience, min_delta=0.00, mode="min")
+        callbacks.append(earlystopping)
+    # 创建 Trainer 实例
+    trainer = L.Trainer(
+        max_epochs=max_epoch,
+        precision=precision,  # 精度
+        logger=logger,  # 日志记录器
+        callbacks=callbacks,  # 回调函数
+        strategy=strategy,  # 分布式策略
+        check_val_every_n_epoch=check_val_every_n_epoch,  # 每隔多少个 epoch 验证一次
+        # gradient_clip_val=gradient_clip_val,  # 梯度裁剪
+    )
+    return trainer
